@@ -76,6 +76,8 @@ sudo docker run -d --name doc1 registry.hub.docker.com/scoulomb/docker-doctor:de
 ### Kubernetes
 
 This is useful to connectivty between a docker running inside a pod in your cluster to outside.
+It a kubeclt conext config which will send you to your cluster (it depends on your machine/user).
+On minikube it is setup for you ([oc client, see below](#i-am-using-openshift-cli) does the same).
 
 See here for `kubectl run` deep dive: https://github.com/scoulomb/myk8s/blob/master/Master-Kubectl/0-kubectl-run-explained.md
 
@@ -171,7 +173,7 @@ But we can  force to do a TCP traceroute and specify the port.
 
 
 ````buildoutcfg
-sudo kubectl exec -it  docker-doc-dev -- /bin/shtraceroute -T -p 443 attestationcovid.site
+sudo kubectl exec -it  docker-doc-dev -- traceroute -T -p 443 attestationcovid.site
 ````
 
 Outout is 
@@ -193,8 +195,26 @@ traceroute to attestationcovid.site (216.239.32.21), 30 hops max, 60 byte packet
 12  any-in-2015.1e100.net (216.239.32.21)  37.511 ms  36.269 ms  36.706 ms
 ````
 
-## I am using OpenShift CLI
+## I am using OpenShift CLI 
 
-replace `sudo kubectl` by `oc`.
+Which as a consequence does not integrate yet major change of 1.18 kubectl run command of the client.
+
+Replace `sudo kubectl` by `oc`.
  
  <!-- sudo kubectl here is with ssh to ubuntu, not minikube -->
+ <!-- sre setup / test.md -->
+ 
+ However this command will launch a job on old version of Kubernetes.
+ Explanations and references are avaialable here: https://github.com/scoulomb/myk8s/blob/master/Master-Kubectl/0-kubectl-run-explained.md#conclusion
+ 
+ 
+````shell script
+oc run docker-doc-dev --image registry.hub.docker.com/scoulomb/docker-doctor:dev --restart=OnFailure --image-pull-policy=Always
+````
+
+So here do 
+
+````shell script
+oc run docker-doc-dev --restart=Never --image registry.hub.docker.com/scoulomb/docker-doctor:dev
+oc exec -it docker-doc-dev -- nslookup google.fr
+````
