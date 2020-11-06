@@ -75,6 +75,8 @@ sudo docker run -d --name doc1 registry.hub.docker.com/scoulomb/docker-doctor:de
 
 ### Kubernetes
 
+This is useful to connectivty between a docker running inside a pod in your cluster to outside.
+
 See here for `kubectl run` deep dive: https://github.com/scoulomb/myk8s/blob/master/Master-Kubectl/0-kubectl-run-explained.md
 
 Note": use [imagePullPolicy](https://kubernetes.io/docs/concepts/containers/images/) to always if updated a version with same tag, otherwise if not present will apply.
