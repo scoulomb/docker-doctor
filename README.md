@@ -6,7 +6,8 @@ Tool to diagnose network issue when we can not run a container as root in a give
 This requires the permission to create a pod in a namespace.
 
 We baked our own image, because `busybox` (among others) does not accept `traceroute` when not allowed to run a container as root.
-This is the case  in many situation (and is configured with psp/scc by cluster admin).
+This is the case  in many situations (and is configured with psp/scc by cluster admin).
+Also base image like Python have minimal setup and thus does not have those tools available.
 
 From this article and Stackoverflow question below: the tip is to run it from ubuntu and install traceroute manually.
 - Doc 1: [Stackoverflow: Question on traceroute whe not root](https://stackoverflow.com/questions/61043365/operation-not-permitted-when-performing-a-traceroute-from-a-container-deployed-i/61396011?noredirect=1#comment108753492_61396011)
@@ -42,10 +43,20 @@ We can also sot he push with Dockerhub build !
 ## usage (client) 
 
 
-Note some cluster requires docker hub full path.
+**Source**:
+
+- Here I am leveraging knowledge from this pages:
+    - https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-application/6-use-linux-nameserver-part-d.md
+    - https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-application/6-use-linux-nameserver-part-d-other-applications.md
+It is linked directly when relevant.
+
+
+- Note some cluster/machine requires docker hub full path when pulling.
 See more [info](https://stackoverflow.com/questions/34198392/docker-official-registry-docker-hub-url).
 
 ### Docker
+
+#### Using entrypoint override
 
 ````shell script
 # rmi in case update and had former version
@@ -55,8 +66,8 @@ sudo docker rmi registry.hub.docker.com/scoulomb/docker-doctor:dev
 sudo docker run -it --entrypoint /bin/sh scoulomb/docker-doctor:dev
 sudo docker run -it --entrypoint /bin/sh registry.hub.docker.com/scoulomb/docker-doctor:dev # first it will go through artifactory and see all layer there
 ````
-
-Output
+<!--
+Pull Output where we can see that in second case it goes the first time through docker and realize it has it in local
 
 ````shell script
 sylvain@sylvain-hp:~/docker-doctor$ sudo docker run -it --entrypoint /bin/sh registry.hub.docker.com/scoulomb/docker-doctor:dev
@@ -65,32 +76,290 @@ dev: Pulling from scoulomb/docker-doctor
 Digest: sha256:e25bfd7925c517d21e2ffaaab1b483e42943f8b769f52c3b0a39a4b5361523d0
 Status: Downloaded newer image for registry.hub.docker.com/scoulomb/docker-doctor:dev
 ````
+-->
 
-And without entrypoint override (as we in kubernetes reather than checking logs)
+output is 
+<!-- ssh if needed before -->
 
 ````shell script
-sudo docker run -d --name doc1 registry.hub.docker.com/scoulomb/docker-doctor:dev
- sudo docker exec -it doc1 /bin/sh # and 
+sylvain@sylvain-hp:~/docker-doctor$ sudo docker run -it --entrypoint /bin/sh registry.hub.docker.com/scoulomb/docker-doctor:dev
+# echo "hello"
+hello
+# ping attestationcovid.site
+PING attestationcovid.site (216.239.34.21) 56(84) bytes of data.
+64 bytes from any-in-2215.1e100.net (216.239.34.21): icmp_seq=1 ttl=115 time=36.6 ms
+64 bytes from any-in-2215.1e100.net (216.239.34.21): icmp_seq=2 ttl=115 time=37.2 ms
+^C
+--- attestationcovid.site ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1001ms
+rtt min/avg/max/mdev = 36.630/36.922/37.214/0.292 ms
+#
 ````
+
+### Using cmd override
+
+````shell script
+sudo docker run -it registry.hub.docker.com/scoulomb/docker-doctor:dev -- /bin/sh
+````
+
+Output is 
+
+````shell script
+sylvain@sylvain-hp:~/docker-doctor$ sudo docker run -it registry.hub.docker.com/scoulomb/docker-doctor:dev -- /bin/sh
+This keeps container running.
+````
+
+It does not work, here args are given to the entrypoint and it is not used.
+To make it work we need to reset the entrypoint and give args.
+We come back to the example given here: https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-application/6-use-linux-nameserver-part-d.md#kubectl-create-job with `sudo docker run alpine /bin/sleep 5`.
+
+````shell script
+sudo docker run -it --entrypoint="" registry.hub.docker.com/scoulomb/docker-doctor:dev -- /bin/sh
+````
+
+Output is 
+
+
+````shell script
+sylvain@sylvain-hp:~/docker-doctor$ sudo docker run -it --entrypoint="" registry.hub.docker.com/scoulomb/docker-doctor:dev /bin/sh
+# echo "hello"
+hello
+#
+````
+
+Not that a good practise when using using Kubernetes which is to use `--`, would not work here
+
+````shell script
+sylvain@sylvain-hp:~/docker-doctor$ sudo docker run -it --entrypoint="" registry.hub.docker.com/scoulomb/docker-doctor:dev -- /bin/sh
+docker: Error response from daemon: OCI runtime create failed: container_linux.go:349: starting container process caused "exec: \"--\": executable file not found in $PATH": unknown.
+ERRO[0000] error waiting for container: context canceled
+sylvain@sylvain-hp:~/docker-doctor$
+````
+
+Because it is given as args as explained here:
+https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-application/6-use-linux-nameserver-part-d.md#override-entrypoint-and-command
+
+
+### And without entrypoint override
+
+````shell script
+sudo docker run -d --name doctor1 registry.hub.docker.com/scoulomb/docker-doctor:dev
+sudo docker exec -it doctor1 /bin/sh 
+````
+
+Output is 
+
+````shell script
+sylvain@sylvain-hp:~/docker-doctor$ sudo docker exec -it doctor1 /bin/sh
+# echo "hello"
+hello
+#
+````
+
+### /bin/sh can be replaced by instruction
+
+Everytime we did `/bin/sh`, we can also give a command.
+
+````shell script
+#### Using entrypoint override
+sudo docker run -it --entrypoint="ping attestationcovid.site"  registry.hub.docker.com/scoulomb/docker-doctor:dev
+sudo docker run -it --entrypoint="ping"  registry.hub.docker.com/scoulomb/docker-doctor:dev attestationcovid.site
+### Using cmd override
+ sudo docker run -it --entrypoint="" registry.hub.docker.com/scoulomb/docker-doctor:dev ping attestationcovid.site
+### And without entrypoint override
+sudo docker exec -it doctor1 ping attestationcovid.site
+````
+
+Output is 
+
+````shell script
+sylvain@sylvain-hp:~/docker-doctor$ sudo docker run -it --entrypoint="ping attestationcovid.site"  registry.hub.docker.com/scoulomb/docker-doctor:dev
+docker: Error response from daemon: OCI runtime create failed: container_linux.go:349: starting container process caused "exec: \"ping attestationcovid.site\": executable file not found in $PATH": unknown.
+ERRO[0000] error waiting for container: context canceled
+sylvain@sylvain-hp:~/docker-doctor$ sudo docker run -it --entrypoint="ping"  registry.hub.docker.com/scoulomb/docker-doctor:dev attestationcovid.site
+PING attestationcovid.site (216.239.32.21) 56(84) bytes of data.
+64 bytes from any-in-2015.1e100.net (216.239.32.21): icmp_seq=1 ttl=114 time=37.5 ms
+^C
+--- attestationcovid.site ping statistics ---
+2 packets transmitted, 1 received, 50% packet loss, time 1001ms
+rtt min/avg/max/mdev = 37.516/37.516/37.516/0.000 ms
+sylvain@sylvain-hp:~/docker-doctor$  sudo docker run -it --entrypoint="" registry.hub.docker.com/scoulomb/docker-doctor:dev ping attestationcovid.site
+PING attestationcovid.site (216.239.38.21) 56(84) bytes of data.
+64 bytes from any-in-2615.1e100.net (216.239.38.21): icmp_seq=1 ttl=114 time=36.1 ms
+64 bytes from any-in-2615.1e100.net (216.239.38.21): icmp_seq=2 ttl=114 time=37.2 ms
+^C
+--- attestationcovid.site ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1001ms
+rtt min/avg/max/mdev = 36.142/36.688/37.235/0.546 ms
+sylvain@sylvain-hp:~/docker-doctor$ sudo docker exec -it doctor1 ping attestationcovid.site
+PING attestationcovid.site (216.239.36.21) 56(84) bytes of data.
+64 bytes from any-in-2415.1e100.net (216.239.36.21): icmp_seq=1 ttl=114 time=36.5 ms
+64 bytes from any-in-2415.1e100.net (216.239.36.21): icmp_seq=2 ttl=114 time=36.2 ms
+^C
+--- attestationcovid.site ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1002ms
+rtt min/avg/max/mdev = 36.228/36.384/36.541/0.156 ms
+sylvain@sylvain-hp:~/docker-doctor$
+````
+
+We can see that for "Using entrypoint override" when we give parameters to entrypoint (which we can do in the Dockerfile), that it is not working with the CLI (at least easily)
+We had met same issue [here](https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-application/6-use-linux-nameserver-part-d-other-applications.md#assume-we-have-in-openshift-templatehelm).
+
 
 ### Kubernetes
 
-This is useful to connectivty between a docker running inside a pod in your cluster to outside.
-It a kubeclt conext config which will send you to your cluster (it depends on your machine/user).
+This is useful to test connectivity between a docker running inside a pod in your cluster to outside.
+Depending on your kube-config it will send you to the right cluster (it depends on your machine/user).
+See this doc: https://github.com/scoulomb/myk8s/blob/master/Master-Kubectl/kube-config.md] for more details.
 On minikube it is setup for you ([oc client, see below](#i-am-using-openshift-cli) does the same).
 
 See here for `kubectl run` deep dive: https://github.com/scoulomb/myk8s/blob/master/Master-Kubectl/0-kubectl-run-explained.md
 
-Note": use [imagePullPolicy](https://kubernetes.io/docs/concepts/containers/images/) to always if updated a version with same tag, otherwise if not present will apply.
-(same issue when did ``docker rmi``).
+Note": use [imagePullPolicy](https://kubernetes.io/docs/concepts/containers/images/) to always if updated a version several time with same tag,
+otherwise if not present will apply by default. In that case when an image with a given tag is in local it will not get the remote update if any.
+(same issue we had in docker when did `docker rmi`).
+
+#### Using Docker entrypoint (<=> k8s command) override
 
 ````shell script
-sudo kubectl run docker-doc-dev --image registry.hub.docker.com/scoulomb/docker-doctor:dev --restart=OnFailure --image-pull-policy=Always
-sudo kubectl exec -it  docker-doc-dev /bin/sh # and -- will prevent from working unlike kubectl
+sudo kubectl run -it docker-doctor-dev-docker-ep-override \
+--image=registry.hub.docker.com/scoulomb/docker-doctor:dev \
+--restart=OnFailure \
+--image-pull-policy=Always \
+--command /bin/sh
 ````
 
-### Features
+Output is
 
+````shell script
+sylvain@sylvain-hp:~/docker-doctor$ sudo kubectl run -it docker-doctor-dev-docker-ep-override \
+> --image=registry.hub.docker.com/scoulomb/docker-doctor:dev \
+> --restart=OnFailure \
+> --image-pull-policy=Always \
+> --command /bin/sh
+If you don't see a command prompt, try pressing enter.
+
+# echo "hello"
+hello
+# ping attestationcovid.site
+PING attestationcovid.site (216.239.38.21) 56(84) bytes of data.
+64 bytes from any-in-2615.1e100.net (216.239.38.21): icmp_seq=1 ttl=114 time=36.7 ms
+64 bytes from any-in-2615.1e100.net (216.239.38.21): icmp_seq=2 ttl=114 time=36.2 ms
+^C
+--- attestationcovid.site ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1001ms
+rtt min/avg/max/mdev = 36.213/36.461/36.709/0.248 ms
+````
+
+Here is the explanation why we override entrypoint when doing `--command`:
+https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-application/6-use-linux-nameserver-part-d.md#kubectl-run
+
+### Using docker CMD (<=> k8s args) override 
+
+
+````shell script
+sudo kubectl run -it docker-doctor-dev-docker-cmd-override \
+--image=registry.hub.docker.com/scoulomb/docker-doctor:dev \
+--restart=OnFailure \
+--image-pull-policy=Always \
+/bin/sh
+````
+
+It will not work because we need to reset the entrpoint as with docker [cli](#using-cmd-override).
+But it is not possible: quoting https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-application/6-use-linux-nameserver-part-d.md#kubectl-run
+>> We can not mix command and args with kubectl.
+
+
+<!-- it is calling the script with args which lead to weird res ok -->
+
+### And without entrypoint override
+
+````shell script
+sudo kubectl run docker-doc-dev-no-override --image registry.hub.docker.com/scoulomb/docker-doctor:dev --restart=OnFailure --image-pull-policy=Always
+sudo kubectl exec -it docker-doc-dev-no-override -- /bin/sh 
+````
+
+Output is
+
+````shell script
+sylvain@sylvain-hp:~/docker-doctor$ sudo kubectl run docker-doc-dev-no-override --image registry.hub.docker.com/scoulomb/docker-doctor:dev --restart=OnFailure --image-pull-policy=Always
+pod/docker-doc-dev-no-override created
+sylvain@sylvain-hp:~/docker-doctor$ sudo kubectl exec -it docker-doc-dev-no-override /bin/sh
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl kubectl exec [POD] -- [COMMAND] instead.
+# ^C
+#
+command terminated with exit code 130
+sylvain@sylvain-hp:~/docker-doctor$ sudo kubectl exec -it docker-doc-dev-no-override -- /bin/sh
+# echo "hello"
+hello
+# ping attestationcovid.site
+PING attestationcovid.site (216.239.32.21) 56(84) bytes of data.
+64 bytes from any-in-2015.1e100.net (216.239.32.21): icmp_seq=1 ttl=114 time=37.4 ms
+64 bytes from any-in-2015.1e100.net (216.239.32.21): icmp_seq=2 ttl=114 time=42.0 ms
+^C
+--- attestationcovid.site ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1001ms
+rtt min/avg/max/mdev = 37.433/39.701/41.969/2.268 ms
+````
+
+Funny part is that here `--` is recommended for `k run`.
+
+
+
+### /bin/sh can be replaced by instruction
+
+
+````shell script
+#### Using Docker entrypoint (<=> k8s command) override
+````shell script
+sudo kubectl run -it docker-doctor-dev-docker-ep-override-direct \
+--image=registry.hub.docker.com/scoulomb/docker-doctor:dev \
+--restart=OnFailure \
+--image-pull-policy=Always \
+--command ping attestationcovid.site
+
+
+### Using docker CMD (<=> k8s args) override 
+# N/A
+
+### And without entrypoint override
+sudo kubectl exec -it docker-doc-dev-no-override-direct -- ping attestationcovid.site
+````
+
+
+Output is 
+
+````shell script
+sylvain@sylvain-hp:~/docker-doctor$ sudo kubectl run -it docker-doctor-dev-docker-ep-override-direct \
+image=regis> --image=registry.hub.docker.com/scoulomb/docker-doctor:dev \
+> --restart=OnFailure \
+> --image-pull-policy=Always \
+> --command ping attestationcovid.site
+
+If you don't see a command prompt, try pressing enter.
+
+64 bytes from any-in-2215.1e100.net (216.239.34.21): icmp_seq=2 ttl=115 time=36.1 ms
+64 bytes from any-in-2215.1e100.net (216.239.34.21): icmp_seq=3 ttl=115 time=36.9 ms
+64 bytes from any-in-2215.1e100.net (216.239.34.21): icmp_seq=4 ttl=115 time=37.1 ms
+^C
+--- attestationcovid.site ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3003ms
+rtt min/avg/max/mdev = 36.128/36.599/37.080/0.391 ms
+
+sylvain@sylvain-hp:~/docker-doctor$ sudo kubectl exec -it docker-doc-dev-no-override -- ping attestationcovid.site
+PING attestationcovid.site (216.239.32.21) 56(84) bytes of data.
+64 bytes from any-in-2015.1e100.net (216.239.32.21): icmp_seq=1 ttl=114 time=36.7 ms
+64 bytes from any-in-2015.1e100.net (216.239.32.21): icmp_seq=2 ttl=114 time=36.6 ms
+^C
+--- attestationcovid.site ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1001ms
+rtt min/avg/max/mdev = 36.623/36.670/36.717/0.047 ms
+sylvain@sylvain-hp:~/docker-doctor$ sudo kubectl exec -it docker-doc-dev-no-override-direct -- ping attestationcovid.site
+````
+
+## Features
+
+For the feature demo I will use the form:  "without entrypoint override" where I replace /bin/sh by instruction.
 ````shell script
 chmod u+x sample.sh
 ./sample.sh
@@ -218,3 +487,21 @@ So here do
 oc run docker-doc-dev --restart=Never --image registry.hub.docker.com/scoulomb/docker-doctor:dev
 oc exec -it docker-doc-dev -- nslookup google.fr
 ````
+
+To make some space on your machine
+
+````shell script
+docker system prune
+````
+
+## Link other projects
+
+- In a previous doc, we were listing the same option as in this doc for various way to run a container and the need of a shell for environment var (in run or exec)
+https://github.com/scoulomb/myk8s/blob/master/Master-Kubectl/4-Run-instructions-into-a-container.md
+I consider this doc as a complement of the old doc.
+But with the highlight of  
+    - here where we had seen that Dockerfile cmd/entrypoint exec form does not process shell (`;` or variable substitution).
+https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-application/6-use-linux-nameserver-part-d.md#v1-with-problem
+    - And what happens with cli override and env var (equivalent to exec)
+    https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-application/6-use-linux-nameserver-part-d.md#override-entrypoint-and-command
+    - we find an issue in old doc and fixed it: https://github.com/scoulomb/myk8s/pull/1
