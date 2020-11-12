@@ -56,6 +56,8 @@ See more [info](https://stackoverflow.com/questions/34198392/docker-official-reg
 
 ### Docker
 
+No need details? go straight to example in [sample.sh](./sample.sh)/
+
 #### Using entrypoint override
 
 ````shell script
@@ -272,7 +274,7 @@ But it is not possible: quoting https://github.com/scoulomb/myDNS/blob/master/2-
 
 <!-- it is calling the script with args which lead to weird res ok -->
 
-### And without entrypoint override
+### And without entrypoint override (k run)
 
 ````shell script
 sudo kubectl run docker-doc-dev-no-override --image registry.hub.docker.com/scoulomb/docker-doctor:dev --restart=OnFailure --image-pull-policy=Always
@@ -359,8 +361,10 @@ sylvain@sylvain-hp:~/docker-doctor$ sudo kubectl exec -it docker-doc-dev-no-over
 
 ## Features
 
-For the feature demo I will use the form:  "without entrypoint override" where I replace /bin/sh by instruction.
+For the feature demo I will use the form:  ["without entrypoint override"](#and-without-entrypoint-override-k-run) where I replace /bin/sh by instruction.
 ````shell script
+sudo kubectl run docker-doc-dev --image registry.hub.docker.com/scoulomb/docker-doctor:dev --restart=OnFailure --image-pull-policy=Always
+
 chmod u+x sample.sh
 ./sample.sh
 ````
@@ -429,7 +433,7 @@ Connection to attestationcovid.site (216.239.32.21) 443 port [tcp/*] succeeded!
 ### Going further 
 
 
-Note on traceroute portocol 
+Note on traceroute protocol 
 
 ````shell script
 On Unix-like operating systems, traceroute sends, by default, a sequence of User Datagram Protocol (UDP) packets, with destination port numbers ranging from 33434 to 33534; the implementations of traceroute shipped with Linux,[2] FreeBSD,[3] NetBSD,[4] OpenBSD,[5] DragonFly BSD,[6] and macOS include an option to use ICMP Echo Request packets (-I), or any arbitrary protocol (-P) such as UDP, TCP using TCP SYN packets, or ICMP.[7]
@@ -464,6 +468,66 @@ traceroute to attestationcovid.site (216.239.32.21), 30 hops max, 60 byte packet
 12  any-in-2015.1e100.net (216.239.32.21)  37.511 ms  36.269 ms  36.706 ms
 ````
 
+ 
+## Notes on image removal 
+
+To avoid the error 
+
+````shell script
+$ sudo docker run --name yop -it --entrypoint /bin/sh registry.hub.docker.com/scoulomb/docker-doctor:dev
+docker: Error response from daemon: Conflict. The container name "/yop" is already in use by container "55bafd525c61736742dde33c37d7d61eb6d6cc3a73625fd2746d32b71cdc2140". You have to remove (or rename) that container to be able to reuse that name.
+$ sudo kubectl run -it docker-doctor-dev-docker-ep-override-rm --image=registry.hub.docker.com/scoulomb/docker-doctor:dev --restart=OnFailure --image-pull-policy=Always --command /bin/sh
+Error from server (AlreadyExists): pods "docker-doctor-dev-docker-ep-override-rm" already exists
+````
+
+Lot of example here: https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-application/6-use-linux-nameserver-part-d.md
+
+Rather than doing 
+
+```shell script
+sudo docker rm <image-name> # docker
+sudo kubectl delete <po-name> # k8s
+```
+
+We can use `--rm` option 
+
+```shell script
+sudo docker run --name yop -it --rm --entrypoint /bin/sh registry.hub.docker.com/scoulomb/docker-doctor:dev
+```
+
+````shell script
+sudo kubectl run -it docker-doctor-dev-docker-ep-override-rm \
+--rm \
+--image=registry.hub.docker.com/scoulomb/docker-doctor:dev \
+--restart=OnFailure \
+--image-pull-policy=Always \
+--command /bin/sh
+````
+
+It may be needed to wait pod deletion.
+
+Note that in Docker it occurs when we give name to the image, which is optional.
+Kubernetes can give default name, here it is is based on k8s command
+
+````shell script
+sudo kubectl run -it \
+--rm \
+--image=registry.hub.docker.com/scoulomb/docker-doctor:dev \
+--restart=OnFailure \
+--image-pull-policy=Always \
+--command pouet
+````
+would create pod
+
+```shell script
+pouet                                         0/1     Terminating          0          18s
+```
+
+This works only with attached container (`-it`) in docker and kube accepts it but it does not make sense as removed.
+So here it would not work in cases "And without entrypoint override"
+[Docker](#and-without-entrypoint-override) 
+[Kubernetes](#and-without-entrypoint-override-k-run)
+
 ## I am using OpenShift CLI 
 
 Which as a consequence does not integrate yet major change of 1.18 kubectl run command of the client.
@@ -488,11 +552,19 @@ oc run docker-doc-dev --restart=Never --image registry.hub.docker.com/scoulomb/d
 oc exec -it docker-doc-dev -- nslookup google.fr
 ````
 
+We use the form ["without entrypoint override"](#and-without-entrypoint-override-k-run) where I replace /bin/sh by instruction.
 To make some space on your machine
 
 ````shell script
 docker system prune
 ````
+
+## I have a connectivity issue, where to start?
+
+Usually connexion issue can be due to:
+- a firewall rule (roule is source ip, destination ip and **port**),
+- a Kubernetes network policy .
+- Or hides network issue ([overalapping subnet](https://live.paloaltonetworks.com/t5/general-topics/overlapping-subnets-in-virtual-router-and-nat/td-p/199902)). 
 
 ## Link other projects
 
@@ -505,3 +577,5 @@ https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-app
     - And what happens with cli override and env var (equivalent to exec)
     https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-application/6-use-linux-nameserver-part-d.md#override-entrypoint-and-command
     - we find an issue in old doc and fixed it: https://github.com/scoulomb/myk8s/pull/1
+    
+    
