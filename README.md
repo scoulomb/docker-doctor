@@ -473,9 +473,10 @@ This TCP traceroute with Ubuntu requires to be root and with correct capabilitie
 Unlike UDP traceroute with Ubuntu which is always working (reason why we did this image).
 Please refer to:
 - https://github.com/scoulomb/myk8s/pull/2
+- https://github.com/scoulomb/myk8s/pull/3
 - https://github.com/scoulomb/myk8s/blob/master/Security/0-capabilities-bis-part1-basic.md#part-3-tcp-traceroute
 
-<!-- it is cristal clear now, stop here OK, my my ubuntu refuse -T osef--> 
+<!-- it is cristal clear now, stop here OK, my my ubuntu refuse -T osef OK --> 
 
 ## Notes on image removal 
 
