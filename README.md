@@ -432,8 +432,7 @@ Connection to attestationcovid.site (216.239.32.21) 443 port [tcp/*] succeeded!
 
 ### Going further 
 
-
-Note on traceroute protocol 
+#### Note on traceroute protocol 
 
 ````shell script
 On Unix-like operating systems, traceroute sends, by default, a sequence of User Datagram Protocol (UDP) packets, with destination port numbers ranging from 33434 to 33534; the implementations of traceroute shipped with Linux,[2] FreeBSD,[3] NetBSD,[4] OpenBSD,[5] DragonFly BSD,[6] and macOS include an option to use ICMP Echo Request packets (-I), or any arbitrary protocol (-P) such as UDP, TCP using TCP SYN packets, or ICMP.[7]
@@ -442,7 +441,7 @@ On Windows, tracert sends ICMP Echo Request packets, rather than the UDP packets
 ````
 
 
-But we can  force to do a TCP traceroute and specify the port.
+#### But we can  force to do a TCP traceroute and specify the port.
 
 
 ````buildoutcfg
@@ -468,7 +467,16 @@ traceroute to attestationcovid.site (216.239.32.21), 30 hops max, 60 byte packet
 12  any-in-2015.1e100.net (216.239.32.21)  37.511 ms  36.269 ms  36.706 ms
 ````
 
- 
+#### Requirements
+
+This TCP traceroute with Ubuntu requires to be root and with correct capabilities as UDP traceroute with Alpine. 
+Unlike UDP traceroute with Ubuntu which is always working (reason why we did this image).
+Please refer to:
+- https://github.com/scoulomb/myk8s/pull/2
+- https://github.com/scoulomb/myk8s/blob/master/Security/0-capabilities-bis-part1-basic.md#part-3-tcp-traceroute
+
+<!-- it is cristal clear now, stop here OK, my my ubuntu refuse -T osef--> 
+
 ## Notes on image removal 
 
 To avoid the error 
