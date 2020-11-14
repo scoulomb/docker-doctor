@@ -588,3 +588,4 @@ https://github.com/scoulomb/myDNS/blob/master/2-advanced-bind/5-real-own-dns-app
     - we find an issue in old doc and fixed it: https://github.com/scoulomb/myk8s/pull/1
     
     
+<!-- this perso project is leveraged in sre-setup pr#27 -->
