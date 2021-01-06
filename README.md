@@ -15,6 +15,8 @@ From this article and Stackoverflow question below: the tip is to run it from ub
 
 We also added other network tools (ping, nc, curl...).
 
+<!-- note we could use tracepath which does not need root user -->
+
 ## Build & run & push
 
 <!--
